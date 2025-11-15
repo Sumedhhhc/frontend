@@ -2,7 +2,6 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Platform } from 'react-native';
-
 import Landing from './screens/Landing';
 import UserSignup from './screens/Auth/UserSignup';
 import NGOSignup from './screens/Auth/NGOSignup';
@@ -12,6 +11,7 @@ import NGODashboard from './screens/NGO/Requests';
 import Login from './screens/Auth/Login';
 import Celebrations from './screens/Donation/Celebrations';
 import CoinsScreen from './screens/Donation/CoinsScreen';
+import DonationHistory from './screens/Donation/DonationHistory';
 
 const Stack = createStackNavigator();
 
@@ -29,6 +29,7 @@ const linking = Platform.OS === 'web' ? {
       MakeDonation: 'donation',
       Celebrations: 'celebrations',
       CoinsScreen: 'coins',
+      DonationHistory: 'donation-history',
     },
   },
 } : undefined;
@@ -46,6 +47,7 @@ export default function App() {
         <Stack.Screen name="MakeDonation" component={MakeDonation} />
         <Stack.Screen name="NGODashboard" component={NGODashboard} />
         <Stack.Screen name="CoinsScreen" component={CoinsScreen} />
+        <Stack.Screen name="DonationHistory" component={DonationHistory} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -1,19 +1,51 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
+  Platform,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 export default function UserDashboard({ navigation }) {
+
+    const [userName, setUserName] = useState("");
+
+  useEffect(() => {
+    const loadUserName = async () => {
+      try {
+        const email =
+          Platform.OS === "web"
+            ? localStorage.getItem("userEmail")
+            : await AsyncStorage.getItem("userEmail");
+
+        if (!email) return;
+
+        const res = await fetch(`http://localhost:3000/api/users/by-email?email=${email}`);
+        const data = await res.json();
+
+        if (data.success && data.data?.name) {
+          setUserName(data.data.name);
+        }
+      } catch (err) {
+        console.log("Error fetching user name:", err);
+      }
+    };
+
+    loadUserName();
+  }, []);
+
   return (
     <View style={styles.container}>
       {/* Background Decorations */}
       <View style={styles.decorativeCircle1} />
       <View style={styles.decorativeCircle2} />
       <View style={styles.decorativeCircle3} />
+
+      <Text style={styles.welcomeUser}>
+        Welcome back, {userName || "User"}!
+      </Text>
 
       <View style={styles.card}>
         <Text style={styles.title}>Welcome to Your Dashboard!</Text>
@@ -42,7 +74,9 @@ export default function UserDashboard({ navigation }) {
             <Text style={styles.tabText}>Your Coins</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.tab, { backgroundColor: '#6366F1' }]}>
+          <TouchableOpacity style={[styles.tab, { backgroundColor: '#6366F1' }]}
+          onPress={() => navigation.navigate('DonationHistory')}
+          >
             <MaterialIcons name="history" size={24} color="#fff" style={styles.icon} />
             <Text style={styles.tabText}>Donation History</Text>
           </TouchableOpacity>
@@ -61,6 +95,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 24,
   },
+
+  welcomeUser: {
+  fontSize: 28,
+  fontWeight: "800",
+  color: "#fff",
+  marginBottom: 20,
+  textAlign: "center",
+  marginTop: -20,
+  zIndex: 10,
+},
+
   decorativeCircle1: {
     position: 'absolute',
     width: 120,

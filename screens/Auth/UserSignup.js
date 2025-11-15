@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Picker } from '@react-native-picker/picker';
 
 export default function UserSignup({ navigation }) {
   const [form, setForm] = useState({
@@ -11,16 +12,23 @@ export default function UserSignup({ navigation }) {
     address: '',
   });
 
+  const [userType, setUserType] = useState('');
+
   const handleChange = (field, value) => {
     setForm({ ...form, [field]: value });
   };
 
   const handleSubmit = async () => {
+    if (!form.name || !form.email || !form.number || !form.password || !form.address || !userType) {
+      alert("Please fill all fields including user type");
+      return;
+    }
+
     try {
       const res = await fetch('http://localhost:3000/api/auth/user-signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, userType }),
       });
 
       const data = await res.json();
@@ -28,23 +36,25 @@ export default function UserSignup({ navigation }) {
       if (data.success && data.user) {
         const userId = data.user._id;
         await AsyncStorage.setItem('userId', userId);
-        console.log('User ID saved to AsyncStorage:', userId);
 
-        Alert.alert('Signup successful!');
+        alert('Signup successful!');
         navigation.navigate('UserDashboard');
       } else {
-        Alert.alert('Signup failed', data.message || 'Unknown error');
+        alert(data.message || 'Signup failed');
       }
     } catch (err) {
       console.error('Signup error:', err);
-      Alert.alert('Unable to signup', 'Please try again');
+      alert('Unable to signup, please try again');
     }
   };
 
   return (
     <View style={styles.container}>
+
       <View style={styles.formCard}>
         <Text style={styles.title}>User Registration</Text>
+
+        {/* Input Fields */}
         {['name', 'email', 'number', 'address', 'password'].map((field) => (
           <View key={field} style={styles.inputContainer}>
             <Text style={styles.inputLabel}>
@@ -54,6 +64,7 @@ export default function UserSignup({ navigation }) {
                 ? 'Contact Number'
                 : field.charAt(0).toUpperCase() + field.slice(1)}
             </Text>
+
             <TextInput
               style={styles.input}
               placeholder={`Enter your ${field}`}
@@ -65,16 +76,38 @@ export default function UserSignup({ navigation }) {
           </View>
         ))}
 
+        {/* User Type Picker */}
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>User Type</Text>
+
+          <View style={styles.pickerWrapper}>
+            <Picker
+              selectedValue={userType}
+              onValueChange={(value) => setUserType(value)}
+              style={styles.picker}
+              dropdownIconColor="#666"   // Icon color matching your theme
+            >
+              <Picker.Item label="Select user type" value="" />
+              <Picker.Item label="Individual" value="individual" />
+              <Picker.Item label="Café" value="cafe" />
+              <Picker.Item label="Restaurant" value="restaurant" />
+              <Picker.Item label="Hostel" value="hostel" />
+              <Picker.Item label="Hotel" value="hotel" />
+              <Picker.Item label="Other Organization" value="organization" />
+            </Picker>
+          </View>
+        </View>
+
+        {/* Register Button */}
         <TouchableOpacity style={styles.button} onPress={handleSubmit}>
           <Text style={styles.buttonText}>Register</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.navigate('Login')}
-        >
+        {/* Back to Login */}
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('Login')}>
           <Text style={styles.backButtonText}>Already have an account? Log in</Text>
         </TouchableOpacity>
+
       </View>
     </View>
   );
@@ -87,84 +120,40 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: '5%',
-    paddingVertical: 24,
   },
-  decorativeCircle1: {
-    position: 'absolute',
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    top: '10%',
-    left: '-15%',
-  },
-  decorativeCircle2: {
-    position: 'absolute',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(37, 117, 252, 0.3)',
-    top: '70%',
-    right: '-10%',
-  },
-  decorativeCircle3: {
-    position: 'absolute',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    top: '25%',
-    right: '20%',
-  },
+
   formCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: 'rgba(255, 255, 255, 0.97)',
     borderRadius: 16,
     paddingHorizontal: 24,
     paddingVertical: 28,
-    width: '60%',
+    width: '80%',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.25,
-    shadowRadius: 25,
-    elevation: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.2,
+    shadowRadius: 18,
+    elevation: 10,
   },
-  header: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
+
   title: {
     fontSize: 28,
     fontWeight: '800',
     color: '#1a1a1a',
-    marginBottom: 6,
     textAlign: 'center',
-    letterSpacing: 0.5,
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    marginBottom: 20,
   },
-  subtitle: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    fontWeight: '500',
-    letterSpacing: 0.3,
-  },
-  formContainer: {
-    width: '100%',
-  },
+
   inputContainer: {
-    marginBottom: 12,
+    marginBottom: 14,
   },
+
   inputLabel: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
     color: '#333',
     marginBottom: 6,
-    letterSpacing: 0.2,
   },
+
   input: {
     width: '100%',
     paddingVertical: 12,
@@ -175,41 +164,53 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     backgroundColor: '#fafbfc',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
   },
+
+  pickerWrapper: {
+  borderWidth: 2,
+  borderColor: '#cdcdcdff',
+  borderRadius: 10,
+  backgroundColor: '#fafbfc',
+  paddingHorizontal: 12,
+  height: 52,
+  justifyContent: 'center',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.05,
+  shadowRadius: 3,
+  elevation: 2,
+},
+
+picker: {
+  color: '#333',
+  fontSize: 16,
+  width: '100%',
+  height: '100%',
+  backgroundColor: 'transparent',
+},
+
   button: {
     backgroundColor: '#2575FC',
     paddingVertical: 16,
-    paddingHorizontal: 20,
     borderRadius: 10,
-    marginTop: 12,
+    marginTop: 15,
     alignItems: 'center',
-    shadowColor: '#2575FC',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    elevation: 3,
   },
+
   buttonText: {
     color: '#fff',
     fontWeight: '700',
     fontSize: 16,
-    letterSpacing: 0.5,
   },
+
   backButton: {
-    backgroundColor: 'transparent',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginTop: 14,
+    marginTop: 16,
     alignItems: 'center',
   },
+
   backButtonText: {
     color: '#666',
     fontSize: 14,
-    fontWeight: '500',
   },
 });
