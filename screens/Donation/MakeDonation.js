@@ -6,6 +6,7 @@ import {
   TextInput,
   StyleSheet,
   Platform,
+  ScrollView,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
@@ -16,7 +17,6 @@ export default function MakeDonation({ navigation }) {
   const [donationType, setDonationType] = useState("");
   const [address, setAddress] = useState("");
 
-  // dynamic fields
   const [foodQuantity, setFoodQuantity] = useState("");
   const [foodItem, setFoodItem] = useState("");
   const [foodType, setFoodType] = useState("");
@@ -25,9 +25,9 @@ export default function MakeDonation({ navigation }) {
   const [moneyAmount, setMoneyAmount] = useState("");
 
   const donationTypes = [
-    { id: "Food", iconName: "food-apple", color: "#e53935" },
-    { id: "Clothes", iconName: "tshirt-crew", color: "#009688" },
-    { id: "Money", iconName: "cash", color: "#fbc02d" },
+    { id: "Food", iconName: "silverware-fork-knife", grad: ["#ef4444", "#f97316"] },
+    { id: "Clothes", iconName: "tshirt-crew", grad: ["#10b981", "#14b8a6"] },
+    { id: "Money", iconName: "cash", grad: ["#f59e0b", "#fbbf24"] },
   ];
 
   const foodTypeOptions = ["Vegetarian", "Non-Vegetarian", "Vegan"];
@@ -35,373 +35,463 @@ export default function MakeDonation({ navigation }) {
 
   const showMap = donationType !== "";
 
-useEffect(() => {
-  const loadUserAddress = async () => {
+  // Load Address
+  useEffect(() => {
+    const loadUserAddress = async () => {
+      try {
+        const email =
+          Platform.OS === "web"
+            ? localStorage.getItem("userEmail")
+            : await AsyncStorage.getItem("userEmail");
+
+        if (!email) return;
+
+        const res = await fetch(
+          `http://localhost:3000/api/users/by-email?email=${email}`
+        );
+        const data = await res.json();
+
+        if (data.success && data.data?.address?.formatted) {
+          setAddress(data.data.address.formatted);
+        }
+      } catch (err) {
+        console.log("Error fetching user:", err);
+      }
+    };
+
+    loadUserAddress();
+  }, []);
+
+  // Submit Donation
+  const handleSubmit = async () => {
     try {
+      if (!donationType || !address) {
+        alert("Please fill required fields");
+        return;
+      }
+
+      let donationDetails = {};
+
+      if (donationType === "Food") {
+        if (!foodQuantity || !foodItem || !foodType || !expirytime) {
+          return alert("Please fill all food fields");
+        }
+        donationDetails = { foodQuantity, foodItem, foodType, expirytime };
+      }
+
+      if (donationType === "Clothes") {
+        if (!clothesDescription) return alert("Enter clothes description");
+        donationDetails = { clothesDescription };
+      }
+
+      if (donationType === "Money") {
+        if (!moneyAmount) return alert("Enter amount");
+        donationDetails = { moneyAmount };
+      }
+
       const email =
         Platform.OS === "web"
           ? localStorage.getItem("userEmail")
           : await AsyncStorage.getItem("userEmail");
 
-      if (!email) {
-        console.log("No email found in storage");
+      if (!email) return alert("Login again");
+
+      const userRes = await fetch(
+        `http://localhost:3000/api/users/by-email?email=${email}`
+      );
+      const userData = await userRes.json();
+
+      if (!userData.success) {
+        alert("Unable to load your user profile");
         return;
       }
 
-      console.log("Fetching user with email:", email);
+      const userId = userData.data._id;
 
-      const res = await fetch(`http://localhost:3000/api/users/by-email?email=${email}`);
+      const res = await fetch("http://localhost:3000/api/donations/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          type: donationType,
+          address,
+          details: donationDetails,
+        }),
+      });
+
       const data = await res.json();
 
-      if (data.success && data.data?.address?.formatted) {
-        setAddress(data.data.address.formatted);
-        console.log("Loaded address:", data.data.address.formatted);
+      if (data.success) {
+        alert("Donation Successful! 🎉");
+        navigation.goBack();
       } else {
-        console.log("User found but no formatted address saved.");
+        alert(data.message);
       }
     } catch (err) {
-      console.log("Error fetching user:", err);
+      alert("Something went wrong.");
     }
   };
 
-  loadUserAddress();
-}, []);
-
-const handleSubmit = async () => {
-  try {
-    // Basic validation
-    if (!donationType || !address) {
-      alert("Please fill required fields");
-      return;
-    }
-
-    let donationDetails = {};
-
-    // FOOD
-    if (donationType === "Food") {
-      if (!foodQuantity || !foodItem || !foodType || !expirytime) {
-        return alert("Please fill all food fields");
-      }
-      donationDetails = {
-        foodQuantity,
-        foodItem,
-        foodType,
-        expirytime
-      };
-    }
-
-    // CLOTHES
-    if (donationType === "Clothes") {
-      if (!clothesDescription) return alert("Enter clothes description");
-      donationDetails = { clothesDescription };
-    }
-
-    // MONEY
-    if (donationType === "Money") {
-      if (!moneyAmount) return alert("Enter amount");
-      donationDetails = { moneyAmount };
-    }
-
-    // 1️⃣ Get logged-in user's email
-    const email =
-      Platform.OS === "web"
-        ? localStorage.getItem("userEmail")
-        : await AsyncStorage.getItem("userEmail");
-
-    if (!email) {
-      alert("User email not found. Please login again.");
-      return;
-    }
-
-    // 2️⃣ Fetch full user data to get userId
-    const userRes = await fetch(
-      `http://localhost:3000/api/users/by-email?email=${email}`
-    );
-    const userData = await userRes.json();
-
-    if (!userData.success) {
-      alert("Unable to load your user profile");
-      return;
-    }
-
-    const userId = userData.data._id;
-
-    // 3️⃣ Submit donation request to backend
-    const res = await fetch("http://localhost:3000/api/donations/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId,
-        type: donationType,
-        address,
-        details: donationDetails
-      })
-    });
-
-    const data = await res.json();
-
-    if (data.success) {
-      window.alert("Donation Successful! 🎉\nYou earned +50 coins once NGO accepts!");
-      navigation.goBack();
-    } else {
-      alert("Donation failed: " + data.message);
-    }
-  } catch (err) {
-    console.log("Donation error:", err);
-    alert("Something went wrong while submitting donation.");
-  }
-};
-
   return (
-    <View style={styles.rootContainer}>
-      <View
-        style={[
-          styles.splitRow,
-          showMap && { justifyContent: "flex-start" },
-        ]}
-      >
+    <View style={styles.screen}>
+      {/* 🌈 Floating Background Blobs */}
+      <View style={styles.pinkBlob} />
+      <View style={styles.cyanBlob} />
+      <View style={styles.yellowBlob} />
 
-        {/* LEFT CARD */}
-        <View style={[styles.cardContainer, showMap && styles.cardLeft]}>
-          <View style={styles.card}>
-            <Text style={styles.title}>Make a Donation</Text>
+      {/* MAIN CONTENT */}
+      <ScrollView contentContainerStyle={styles.scrollWrap}>
+        <View style={styles.container}>
 
-            {/* Address */}
-            <View style={styles.inputContainer}>
-              <MaterialCommunityIcons
-                name="map-marker"
-                size={20}
-                color="#6A11CB"
-                style={styles.inputIcon}
-              />
+          {/* HEADER */}
+          <View style={styles.headerWrap}>
+            <MaterialCommunityIcons
+              name="heart"
+              size={32}
+              color="#f9a8d4"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.headerText}>Make a Difference</Text>
+            <MaterialCommunityIcons
+              name="heart"
+              size={32}
+              color="#f9a8d4"
+              style={{ marginLeft: 8 }}
+            />
+          </View>
+          <Text style={styles.subText}>
+            Your generosity can change lives. Choose what you'd like to donate and we'll connect you with those in need.
+          </Text>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Enter pickup address"
-                value={address}
-                onChangeText={setAddress}
-              />
-            </View>
+          {/* SPLIT ROW */}
+          <View style={[styles.splitRow, showMap && { justifyContent: "flex-start" }]}>
+            
+            {/* LEFT CARD */}
+            <View style={[styles.leftCardOuter, showMap && { marginRight: 24 }]}>
+              <View style={styles.leftCardInner}>
+                {/* ADDRESS */}
+                <View style={styles.inputBlock}>
+                  <Text style={styles.label}>
+                    <MaterialCommunityIcons name="map-marker" size={16} color="#6A11CB" />
+                    {"  "}
+                    Pickup Address
+                  </Text>
 
-            {/* DONATION TYPES */}
-            <View style={styles.donationTypes}>
-              {donationTypes.map((type) => {
-                const isActive = donationType === type.id;
-
-                return (
-                  <TouchableOpacity
-                    key={type.id}
-                    style={[
-                      styles.typeButton,
-                      isActive && { backgroundColor: type.color },
-                    ]}
-                    onPress={() => setDonationType(type.id)}
-                  >
+                  <View style={styles.inputWithIcon}>
                     <MaterialCommunityIcons
-                      name={type.iconName}
-                      size={28}
-                      color={isActive ? "#fff" : "#666"}
+                      name="map-marker"
+                      size={20}
+                      color="#6A11CB"
+                      style={styles.inputIcon}
                     />
-
-                    <Text
-                      style={[
-                        styles.typeText,
-                        isActive && { color: "#fff" },
-                      ]}
-                    >
-                      {type.id}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* FOOD FIELDS */}
-            {donationType === "Food" && (
-              <View style={{ width: "100%", marginTop: 20 }}>
-                <TextInput
-                  style={styles.dynamicInput}
-                  placeholder="Food Quantity"
-                  value={foodQuantity}
-                  onChangeText={setFoodQuantity}
-                />
-
-                <TextInput
-                  style={styles.dynamicInput}
-                  placeholder="What food?"
-                  value={foodItem}
-                  onChangeText={setFoodItem}
-                />
-
-                {/* Food Type */}
-                <View style={styles.dropdown}>
-                  <Picker
-                    selectedValue={foodType}
-                    onValueChange={setFoodType}
-                  >
-                    <Picker.Item label="Select Food Type" value="" />
-                    {foodTypeOptions.map((t) => (
-                      <Picker.Item key={t} label={t} value={t} />
-                    ))}
-                  </Picker>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter your address"
+                      value={address}
+                      onChangeText={setAddress}
+                    />
+                  </View>
                 </View>
 
-                {/* Expiry */}
-                <View style={styles.dropdown}>
-                  <Picker
-                    selectedValue={expirytime}
-                    onValueChange={setExpirytime}
-                  >
-                    <Picker.Item label="Select Expiry Time" value="" />
-                    {expiryOptions.map((t) => (
-                      <Picker.Item key={t} label={t} value={t} />
-                    ))}
-                  </Picker>
+                {/* DONATION TYPE */}
+                <Text style={styles.label}>Choose Donation Type</Text>
+
+                <View style={styles.typeRow}>
+                  {donationTypes.map((type) => {
+                    const active = donationType === type.id;
+                    return (
+                      <TouchableOpacity
+                        key={type.id}
+                        onPress={() => setDonationType(type.id)}
+                        style={[
+                          styles.typeBox,
+                          active && {
+                            backgroundColor: type.grad[0],
+                            borderColor: "transparent",
+                          },
+                        ]}
+                      >
+                        <MaterialCommunityIcons
+                          name={type.iconName}
+                          size={28}
+                          color={active ? "#fff" : "#666"}
+                        />
+                        <Text style={[styles.typeLabel, active && { color: "#fff" }]}>
+                          {type.id}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* FOOD */}
+                {donationType === "Food" && (
+                  <View style={styles.dynamicSection}>
+                    <TextInput
+                      style={styles.dynamicInput}
+                      placeholder="e.g., 5 plates"
+                      value={foodQuantity}
+                      onChangeText={setFoodQuantity}
+                    />
+                    <TextInput
+                      style={styles.dynamicInput}
+                      placeholder="e.g., Rice & Curry"
+                      value={foodItem}
+                      onChangeText={setFoodItem}
+                    />
+
+                    <View style={styles.dropdown}>
+                      <Picker selectedValue={foodType} onValueChange={setFoodType}>
+                        <Picker.Item label="Select Food Type" value="" />
+                        {foodTypeOptions.map((t) => (
+                          <Picker.Item key={t} label={t} value={t} />
+                        ))}
+                      </Picker>
+                    </View>
+
+                    <View style={styles.dropdown}>
+                      <Picker selectedValue={expirytime} onValueChange={setExpirytime}>
+                        <Picker.Item label="Select Expiry Time" value="" />
+                        {expiryOptions.map((t) => (
+                          <Picker.Item key={t} label={t} value={t} />
+                        ))}
+                      </Picker>
+                    </View>
+                  </View>
+                )}
+
+                {/* CLOTHES */}
+                {donationType === "Clothes" && (
+                  <TextInput
+                    style={styles.dynamicInput}
+                    placeholder="Describe the clothes"
+                    value={clothesDescription}
+                    onChangeText={setClothesDescription}
+                  />
+                )}
+
+                {/* MONEY */}
+                {donationType === "Money" && (
+                  <TextInput
+                    style={styles.dynamicInput}
+                    placeholder="Enter amount"
+                    keyboardType="numeric"
+                    value={moneyAmount}
+                    onChangeText={setMoneyAmount}
+                  />
+                )}
+
+                {/* SUBMIT */}
+                <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit}>
+                  <Text style={styles.submitBtnText}>Submit Donation Request</Text>
+                </TouchableOpacity>
+
+                {/* COIN INFO */}
+                <View style={styles.infoBox}>
+                  <MaterialCommunityIcons
+                    name="check-circle"
+                    size={20}
+                    color="#059669"
+                  />
+                  <Text style={styles.infoText}>
+                    You'll earn <Text style={{ fontWeight: "bold" }}>+50 coins</Text> once an NGO accepts your donation!
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* RIGHT MAP */}
+            {showMap && (
+              <View style={styles.mapCardOuter}>
+                <View style={styles.mapCardInner}>
+                  <WebLeafletMap address={address} />
                 </View>
               </View>
             )}
 
-            {/* CLOTHES */}
-            {donationType === "Clothes" && (
-              <TextInput
-                style={[styles.dynamicInput, { marginTop: 20 }]}
-                placeholder="Describe the clothes"
-                value={clothesDescription}
-                onChangeText={setClothesDescription}
-              />
-            )}
-
-            {/* MONEY */}
-            {donationType === "Money" && (
-              <TextInput
-                style={[styles.dynamicInput, { marginTop: 20 }]}
-                placeholder="Enter amount"
-                keyboardType="numeric"
-                value={moneyAmount}
-                onChangeText={setMoneyAmount}
-              />
-            )}
-
-            {/* SUBMIT */}
-            <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-              <Text style={styles.submitButtonText}>
-                Submit Donation Request
-              </Text>
-            </TouchableOpacity>
           </View>
         </View>
-
-        {/* RIGHT MAP */}
-        {showMap && (
-          <View style={styles.mapPane}>
-            <WebLeafletMap address={address} />
-          </View>
-        )}
-      </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  rootContainer: {
+  screen: {
     flex: 1,
     backgroundColor: "#6A11CB",
-    padding: 20,
+    ...(Platform.OS === "web" && {
+      backgroundImage: "linear-gradient(135deg,#6A11CB,#7e34db,#4f46e5)",
+    }),
   },
 
+  scrollWrap: { paddingVertical: 40, alignItems: "center" },
+  container: { width: "100%", maxWidth: 1200, alignItems: "center" },
+
+  // HEADER
+  headerWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 2,
+    marginTop: '-2vw',
+  },
+  headerText: {
+    color: "#fff",
+    fontSize: 30,
+    fontWeight: "bold",
+  },
+  subText: {
+    color: "#e9d5ff",
+    fontSize: 15,
+    textAlign: "center",
+    marginBottom: 30,
+  },
+
+  // BLOBS
+  pinkBlob: {
+    position: "absolute",
+    top: -80,
+    left: -60,
+    width: 300,
+    height: 300,
+    backgroundColor: "rgba(236,72,153,0.25)",
+    borderRadius: 300,
+    filter: "blur(120px)",
+  },
+  cyanBlob: {
+    position: "absolute",
+    bottom: -100,
+    right: -40,
+    width: 400,
+    height: 400,
+    backgroundColor: "rgba(34,211,238,0.25)",
+    borderRadius: 400,
+    filter: "blur(150px)",
+  },
+  yellowBlob: {
+    position: "absolute",
+    top: "40%",
+    right: "35%",
+    width: 240,
+    height: 240,
+    backgroundColor: "rgba(251,191,36,0.18)",
+    borderRadius: 240,
+    filter: "blur(100px)",
+  },
+
+  // SPLIT
   splitRow: {
     flexDirection: "row",
-    flex: 1,
+    width: "100%",
     justifyContent: "center",
+    marginTop: '-1vw',
   },
 
-  cardContainer: {
-    width: 420,
+  // LEFT CARD (glass)
+  leftCardOuter: {
+    width: 480,
+    padding: 6,
+    borderRadius: 30,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
   },
-
-  cardLeft: {
-    marginRight: 20,
-  },
-
-  mapPane: {
-    flex: 1,
-    height: "100%",
-    backgroundColor: "#ddd",
-    borderRadius: 16,
-    overflow: "hidden",
-  },
-
-  card: {
+  leftCardInner: {
     backgroundColor: "#fff",
-    padding: 30,
-    borderRadius: 20,
+    borderRadius: 24,
+    padding: 24,
   },
 
-  title: {
-    fontSize: 26,
-    fontWeight: "bold",
-    color: "#6A11CB",
-    textAlign: "center",
-    marginBottom: 20,
-  },
-
-  inputContainer: { position: "relative", marginBottom: 20 },
-
-  inputIcon: { position: "absolute", top: 14, left: 14 },
-
-  input: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 42,
-  },
-
-  donationTypes: { flexDirection: "row", marginTop: 10 },
-
-  typeButton: {
-    flex: 1,
-    marginHorizontal: 5,
-    padding: 12,
-    borderRadius: 16,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#ddd",
-  },
-
-  typeText: {
-    marginTop: 5,
+  // Inputs
+  label: {
+    color: "#444",
     fontWeight: "600",
+    marginBottom: 8,
+  },
+  inputBlock: { marginBottom: 22 },
+  inputWithIcon: { position: "relative" },
+  inputIcon: { position: "absolute", top: 15, left: 14, zIndex: 2 },
+  input: {
+    paddingLeft: 44,
+    borderWidth: 2,
+    borderColor: "#e5e7eb",
+    paddingVertical: 12,
+    borderRadius: 14,
   },
 
+  // Donation Types
+  typeRow: { flexDirection: "row", gap: 12, marginVertical: 10 },
+  typeBox: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 20,
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#ddd",
+  },
+  typeLabel: { marginTop: 6, fontSize: 14, fontWeight: "600" },
+
+  // Dynamic Fields
+  dynamicSection: { marginTop: 20 },
   dynamicInput: {
-    borderWidth: 1,
-    borderColor: "#ccc",
+    borderWidth: 2,
+    borderColor: "#e5e7eb",
+    backgroundColor: "#fafafa",
     padding: 12,
     borderRadius: 12,
-    backgroundColor: "#f9f9f9",
     marginBottom: 12,
   },
 
   dropdown: {
-    borderWidth: 1,
-    borderColor: "#ddd",
+    borderWidth: 2,
+    borderColor: "#e5e7eb",
     borderRadius: 12,
-    backgroundColor: "#f9f9f9",
     marginBottom: 12,
+    backgroundColor: "#fafafa",
   },
 
-  submitButton: {
+  // Submit Button
+  submitBtn: {
     backgroundColor: "#6A11CB",
-    marginTop: 25,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
+    marginTop: 20,
   },
-
-  submitButtonText: {
+  submitBtnText: {
     color: "#fff",
     textAlign: "center",
-    fontWeight: "bold",
-    fontSize: 18,
+    fontSize: 17,
+    fontWeight: "700",
+  },
+
+  // Info Box
+  infoBox: {
+    marginTop: 16,
+    backgroundColor: "#ecfdf5",
+    padding: 14,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#bbf7d0",
+  },
+  infoText: { color: "#065f46", fontSize: 13, flex: 1 },
+
+  // MAP
+  mapCardOuter: {
+    flex: 1,
+    minHeight: 600,
+    padding: 6,
+    borderRadius: 30,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  mapCardInner: {
+    flex: 1,
+    borderRadius: 24,
+    overflow: "hidden",
+    backgroundColor: "#fff",
   },
 });

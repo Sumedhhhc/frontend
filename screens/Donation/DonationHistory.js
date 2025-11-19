@@ -6,37 +6,38 @@ export default function DonationHistory() {
 
   const [history, setHistory] = useState([]);
 
-  useEffect(() => {
-    async function fetchHistory() {
-      try {
-        const email =
-          Platform.OS === "web"
-            ? localStorage.getItem("userEmail")
-            : await AsyncStorage.getItem("userEmail");
+ useEffect(() => {
+  async function fetchHistory() {
+    try {
+      const email =
+        Platform.OS === "web"
+          ? localStorage.getItem("userEmail")
+          : await AsyncStorage.getItem("userEmail");
 
-        if (!email) return;
+      if (!email) return;
 
-        const userRes = await fetch(
-          `http://localhost:3000/api/users/by-email?email=${email}`
-        );
-        const userData = await userRes.json();
+      console.log("Fetching history for email:", email);
 
-        if (!userData.success) return;
+      const res = await fetch(
+        `http://localhost:3000/api/donations/history/email/${email}`
+      );
 
-        const userId = userData.data._id;
-        const res = await fetch(
-          `http://localhost:3000/api/donations/history/${userId}`
-        );
-        const data = await res.json();
+      const data = await res.json();
 
-        setHistory(data.history || []);
-      } catch (err) {
-        console.log("History load error:", err);
+      if (!data.success) {
+        console.log("History fetch failed:", data.message);
+        return;
       }
-    }
 
-    fetchHistory();
-  }, []);
+      setHistory(data.history || []);
+
+    } catch (err) {
+      console.log("History load error:", err);
+    }
+  }
+
+  fetchHistory();
+}, []);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -50,16 +51,17 @@ export default function DonationHistory() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ alignItems: "center" }}>
+    <View style={styles.container} contentContainerStyle={{ alignItems: "center" }}>
       
       {/* Background Circles */}
       <View style={styles.circle1} />
       <View style={styles.circle2} />
       <View style={styles.circle3} />
 
-      <Text style={styles.title}>Your Donation History</Text>
+      <Text style={[styles.title, { textAlign: "center" }]}>Your Donation History</Text>
 
-      <View style={{ width: "100%", alignItems: "center", paddingBottom: "10vh" }}>
+      <ScrollView style={{ width: "100%", height: "60vh", paddingBottom: "10vh" }}>
+        <View style={{alignItems: "center"}}>
         {history.length === 0 ? (
           <Text style={{ color: "#fff", marginTop: "3vh", fontSize: "2.4vw" }}>
             No donation records yet.
@@ -128,9 +130,10 @@ export default function DonationHistory() {
             </View>
           ))
         )}
-      </View>
+        </View>
+      </ScrollView>
 
-    </ScrollView>
+    </View>
   );
 }
 

@@ -1,15 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
   FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  Linking,
+  Pressable,
   ActivityIndicator,
-} from 'react-native';
-import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+  Animated,
+  StyleSheet,
+  Platform,
+} from "react-native";
+import MaterialIcons from "react-native-vector-icons/MaterialIcons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function Celebrations() {
   const [ngos, setNgos] = useState([]);
@@ -21,241 +22,351 @@ export default function Celebrations() {
 
   const fetchNGOs = async () => {
     try {
-      const res = await fetch('http://localhost:3000/api/users?type=ngo');
+      const res = await fetch("http://localhost:3000/api/users?type=ngo");
       const json = await res.json();
-      const email = await AsyncStorage.getItem('userEmail');
-      console.log('Loaded userEmail:', email);
 
-      if (json.success && Array.isArray(json.data)) {
-        setNgos(json.data);
-      } else {
-        setNgos([]);
-      }
+      const email = await AsyncStorage.getItem("userEmail");
+      console.log("Loaded userEmail:", email);
+
+      if (json.success && Array.isArray(json.data)) setNgos(json.data);
+      else setNgos([]);
     } catch (err) {
-      window.alert('Error', 'Unable to fetch NGO data');
       console.error(err);
+      alert("Unable to fetch NGO data");
     } finally {
       setLoading(false);
     }
   };
 
   const handleCall = (number) => {
-    if (!number) {
-      window.alert('Error', 'Contact number not available');
-      return;
-    }
-    Linking.openURL(`tel:${number}`);
+    if (!number) return alert("Contact number not available");
+    window.open(`tel:${number}`);
   };
 
-  const renderNGOCard = ({ item }) => (
-  <View style={styles.ngoCard}>
-    <View style={styles.cardHeader}>
-      <Text style={styles.ngoName}>{item.name}</Text>
-      <View
-        style={[
-          styles.statusBadge,
-          {
-            backgroundColor:
-              item.status === 'available'
-                ? 'rgba(34,197,94,0.2)'
-                : 'rgba(239,68,68,0.2)',
-          },
-        ]}
-      >
-        <Text
-          style={[
-            styles.statusText,
-            { color: item.status === 'available' ? '#15803D' : '#B91C1C' },
-          ]}
-        >
-          {item.status === 'available' ? 'Available' : 'Occupied'}
-        </Text>
-      </View>
-    </View>
-    <Text style={styles.emailText}>{item.email || 'No email available'}</Text>
+  /* ============================================================
+      PERFECT FIGMA CARD — fixed width, fixed glow, true hover
+  ============================================================ */
 
-    <View style={styles.detailRow}>
-      <MaterialIcons name="call" size={18} color="#2563EB" />
-      <Text style={styles.contactText}>
-        {item.number || 'No contact available'}
-      </Text>
-    </View>
+  const NGOCard = ({ item }) => {
+    const anim = useRef(new Animated.Value(0)).current;
 
-    <TouchableOpacity
-      style={[
-        styles.callButton,
-        { backgroundColor: item.status === 'available' ? '#2563EB' : '#9CA3AF' },
-      ]}
-      onPress={() =>
-        item.status === 'available'
-          ? handleCall(item.number)
-          : window.alert('Not Available', 'This NGO is currently occupied.')
-      }
-    >
-      <MaterialIcons name="phone-in-talk" size={20} color="#fff" />
-      <Text style={styles.callButtonText}>
-        {item.status === 'available' ? 'Call NGO' : 'Occupied'}
-      </Text>
-    </TouchableOpacity>
-  </View>
-);
+    const onHoverIn = () => {
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: 180,
+        useNativeDriver: true,
+      }).start();
+    };
+
+    const onHoverOut = () => {
+      Animated.timing(anim, {
+        toValue: 0,
+        duration: 180,
+        useNativeDriver: true,
+      }).start();
+    };
+
+    // lift card
+    const translateY = anim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, -8],
+    });
+
+    // glow fade-in
+    const glowOpacity = anim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 1],
+    });
+
+    // glow downward shift for figma effect
+    const glowTranslate = anim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [6, 14],
+    });
+
+    return (
+      <Pressable onHoverIn={onHoverIn} onHoverOut={onHoverOut}>
+        <View style={{ width: 380, height: 250, marginBottom: 40 }}>
+          {/* Glow (behind card, never covering top bar) */}
+          <Animated.View
+            style={[
+              styles.cardGlow,
+              {
+                opacity: glowOpacity,
+                transform: [{ translateY: glowTranslate }],
+              },
+            ]}
+          />
+
+          {/* The card itself */}
+          <Animated.View
+            style={[
+              styles.cardWrapper,
+              { transform: [{ translateY }] },
+            ]}
+          >
+            {/* Gradient top bar */}
+            <View
+              style={[
+                styles.topBar,
+                Platform.OS === "web" && {
+                  backgroundImage:
+                    "linear-gradient(90deg, #7c3aed, #ec4899, #4f46e5)",
+                },
+              ]}
+            />
+
+            {/* Card content */}
+            <View style={styles.cardInner}>
+              {/* Header row */}
+              <View style={styles.cardHeader}>
+                <Text style={styles.ngoName}>{item.name}</Text>
+
+                <View
+                  style={[
+                    styles.statusBadge,
+                    item.status === "available"
+                      ? styles.availableBadge
+                      : styles.occupiedBadge,
+                  ]}
+                >
+                  <MaterialIcons
+                    name={
+                      item.status === "available"
+                        ? "check-circle"
+                        : "cancel"
+                    }
+                    size={16}
+                    color={
+                      item.status === "available" ? "#15803D" : "#B91C1C"
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.statusText,
+                      {
+                        color:
+                          item.status === "available" ? "#15803D" : "#B91C1C",
+                      },
+                    ]}
+                  >
+                    {item.status === "available"
+                      ? "Available"
+                      : "Occupied"}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Email */}
+              <View style={styles.row}>
+                <MaterialIcons name="mail" size={18} color="#7c3aed" />
+                <Text style={styles.contactText}>{item.email}</Text>
+              </View>
+
+              {/* Number */}
+              <View style={styles.row}>
+                <MaterialIcons name="call" size={18} color="#7c3aed" />
+                <Text style={styles.contactText}>{item.number}</Text>
+              </View>
+
+              {/* Call button */}
+              <Pressable
+                onPress={() =>
+                  item.status === "available"
+                    ? handleCall(item.number)
+                    : alert("This NGO is currently occupied")
+                }
+                style={[
+                  styles.callButton,
+                  item.status === "available"
+                    ? styles.callAvailable
+                    : styles.callDisabled,
+                ]}
+              >
+                <MaterialIcons
+                  name="phone-in-talk"
+                  size={20}
+                  color={item.status === "available" ? "#fff" : "#666"}
+                />
+                <Text
+                  style={[
+                    styles.callButtonText,
+                    {
+                      color:
+                        item.status === "available" ? "#fff" : "#666",
+                    },
+                  ]}
+                >
+                  {item.status === "available"
+                    ? "Call NGO"
+                    : "Currently Occupied"}
+                </Text>
+              </Pressable>
+            </View>
+          </Animated.View>
+        </View>
+      </Pressable>
+    );
+  };
+
+  /* ============================================================ */
 
   return (
-    <View style={styles.container}>
-      {/* Decorative background shapes */}
-      <View style={styles.decorativeCircle1} />
-      <View style={styles.decorativeCircle2} />
-      <View style={styles.decorativeCircle3} />
-
-      <View style={styles.card}>
-        <Text style={styles.title}>🎊 Celebrate with NGOs!</Text>
-        <Text style={styles.subtitle}>
-          Connect with registered NGOs to organize celebration events.
+    <View style={styles.page}>
+      {/* Header */}
+      <View style={styles.headerWrap}>
+        <Text style={styles.headerTitle}>🎉 Celebrate with NGOs!</Text>
+        <Text style={styles.headerSubtitle}>
+          Connect with registered NGOs to organize meaningful celebration events.
         </Text>
-
-        {loading ? (
-          <ActivityIndicator
-            size="large"
-            color="#2563EB"
-            style={{ marginTop: 40 }}
-          />
-        ) : ngos.length === 0 ? (
-          <Text style={styles.noData}>No NGOs found</Text>
-        ) : (
-          <FlatList
-            data={ngos}
-            keyExtractor={(item, index) => index.toString()}
-            renderItem={renderNGOCard}
-            contentContainerStyle={styles.listContainer}
-          />
-        )}
       </View>
+
+      {loading ? (
+        <ActivityIndicator size="large" color="#fff" />
+      ) : (
+        <FlatList
+          data={ngos}
+          renderItem={({ item }) => <NGOCard item={item} />}
+          keyExtractor={(item, i) => i.toString()}
+          numColumns={3}
+          contentContainerStyle={{
+            paddingBottom: 120,
+            alignItems: "center",
+            gap: 40,
+          }}
+          columnWrapperStyle={{
+            justifyContent: "center",
+            gap: 40,
+            marginTop: 40,
+          }}
+        />
+      )}
     </View>
   );
 }
 
+/* ======================== STYLES ======================== */
+
 const styles = StyleSheet.create({
-  container: {
+  page: {
     flex: 1,
-    backgroundColor: '#6A11CB',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 24,
+    minHeight: "100vh",
+    paddingTop: 50,
+    backgroundColor: "#5b21b6",
   },
-  decorativeCircle1: {
-    position: 'absolute',
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    top: '10%',
-    left: '-15%',
+
+  headerWrap: {
+    alignItems: "center",
+    marginBottom: 50,
   },
-  decorativeCircle2: {
-    position: 'absolute',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(37, 117, 252, 0.3)',
-    top: '70%',
-    right: '-10%',
+  headerTitle: {
+    fontSize: 36,
+    color: "#fff",
+    fontWeight: "900",
   },
-  decorativeCircle3: {
-    position: 'absolute',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    top: '25%',
-    right: '20%',
-  },
-  card: {
-    width: '85%',
-    height: '80%',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 16,
-    paddingVertical: 24,
-    paddingHorizontal: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#1a1a1a',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  subtitle: {
+  headerSubtitle: {
+    marginTop: 8,
     fontSize: 16,
-    color: '#555',
-    textAlign: 'center',
-    marginBottom: 20,
+    color: "rgba(255,255,255,0.85)",
+    textAlign: "center",
+    maxWidth: 700,
   },
-  listContainer: {
-    paddingBottom: 40,
+
+  /* Glow behind card */
+  cardGlow: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    height: 250,
+    borderRadius: 24,
+    backgroundImage:
+      "linear-gradient(90deg, #7c3aed, #ec4899, #4f46e5)",
+    filter: "blur(26px)",
   },
-  ngoCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 3 },
+
+  /* Card wrapper */
+  cardWrapper: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#fff",
+    borderRadius: 22,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 18,
+    overflow: "hidden",
   },
+
+  topBar: {
+    height: 6,
+    backgroundColor: "#7c3aed",
+  },
+
+  cardInner: {
+    padding: 20,
+  },
+
   cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
   },
   ngoName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#111827",
+    width: "65%",
   },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 8,
-  },
-  contactText: {
-    fontSize: 14,
-    color: '#374151',
-    marginLeft: 6,
-  },
+
   statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 6,
+  },
+  availableBadge: {
+    backgroundColor: "#dcfce7",
+  },
+  occupiedBadge: {
+    backgroundColor: "#fee2e2",
   },
   statusText: {
-    fontWeight: '600',
-    fontSize: 12,
+    fontSize: 13,
+    fontWeight: "700",
   },
+
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  contactText: {
+    marginLeft: 8,
+    color: "#374151",
+  },
+
   callButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderRadius: 10,
-    justifyContent: 'center',
-    marginTop: 8,
+    marginTop: 16,
+    paddingVertical: 12,
+    borderRadius: 14,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 10,
+  },
+  callAvailable: {
+    backgroundImage:
+      Platform.OS === "web"
+        ? "linear-gradient(90deg, #7c3aed, #4f46e5)"
+        : undefined,
+    backgroundColor: Platform.OS !== "web" ? "#7c3aed" : "transparent",
+  },
+  callDisabled: {
+    backgroundColor: "#e5e7eb",
   },
   callButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    marginLeft: 6,
-  },
-  noData: {
-    textAlign: 'center',
-    color: '#666',
-    fontSize: 16,
-    marginTop: 40,
+    fontSize: 15,
+    fontWeight: "700",
   },
 });
